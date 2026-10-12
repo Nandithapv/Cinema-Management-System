@@ -1,0 +1,3 @@
+db.url=jdbc:mysql://localhost:3306/CinemaManagement
+db.username=root
+db.password=YOUR_ACTUAL_PASSWORD

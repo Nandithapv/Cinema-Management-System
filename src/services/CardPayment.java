@@ -1,5 +1,9 @@
-package models;
+package services;
 
+/**
+ * Concrete Strategy for Credit/Debit Card payments.
+ * Demonstrates OOP Concepts: Polymorphism, Encapsulation & Input Validation.
+ */
 public class CardPayment implements PaymentStrategy {
 
     private final String cardNumber;
@@ -14,17 +18,22 @@ public class CardPayment implements PaymentStrategy {
 
     @Override
     public boolean pay(double amount) {
-        if (amount <= 0) return false;
+        if (amount <= 0) {
+            return false;
+        }
+        // Validate: 16 digits card number, MM/YY format, 3 digits CVV
         return cardNumber.matches("\\d{16}")
                 && expiry.matches("(0[1-9]|1[0-2])/\\d{2}")
                 && cvv.matches("\\d{3}");
     }
 
     @Override
-    public String getMethodName() { return "CARD"; }
+    public String getMethodName() {
+        return "CARD";
+    }
 
     @Override
     public String getValidationHint() {
-        return "Enter a 16-digit card number, expiry as MM/YY, and a 3-digit CVV.";
+        return "Please enter a valid 16-digit card number, expiry date (MM/YY), and a 3-digit CVV.";
     }
 }

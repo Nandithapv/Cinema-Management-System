@@ -25,14 +25,14 @@ public class DatabaseConnection {
             if (connection == null || connection.isClosed()) {
                 Properties props = new Properties();
 
-                // Look for db.properties in the working directory
+                // 1. Look for db.properties in the working directory
                 File propFile = new File("db.properties");
                 if (propFile.exists()) {
                     try (InputStream input = new FileInputStream(propFile)) {
                         props.load(input);
                     }
                 } else {
-                    // Fall back to classpath lookup
+                    // 2. Fall back to classpath lookup
                     InputStream cpStream = DatabaseConnection.class.getClassLoader().getResourceAsStream("db.properties");
                     if (cpStream != null) {
                         try (cpStream) {
@@ -41,15 +41,17 @@ public class DatabaseConnection {
                     }
                 }
 
+                // Default fallback supports cinema_db / CinemaManagement
                 String url = props.getProperty("db.url", "jdbc:mysql://localhost:3306/cinema_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC");
                 String user = props.getProperty("db.user", "root");
                 String password = props.getProperty("db.password", "admin123");
 
                 connection = DriverManager.getConnection(url, user, password);
-                System.out.println("[DatabaseConnection] Connected to MySQL database.");
+                System.out.println("[DatabaseConnection] Connected to MySQL database successfully!");
             }
         } catch (SQLException e) {
             System.err.println("[DatabaseConnection] Connection failed: " + e.getMessage());
+            e.printStackTrace();
         } catch (Exception e) {
             System.err.println("[DatabaseConnection] Error loading properties: " + e.getMessage());
         }

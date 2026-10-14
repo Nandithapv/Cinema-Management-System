@@ -367,7 +367,7 @@ public class TicketReceiptDialog extends JDialog {
     private String[] parseDateTime(String showDateTime) {
         String dateStr = "15 Oct 2026";
         String timeStr = "06:30 PM";
-        String screen = "Screen 1";
+        String screen = "Screen 2";
 
         if (showDateTime == null || showDateTime.trim().isEmpty() || "-".equals(showDateTime)) {
             return new String[] { dateStr, timeStr, screen };

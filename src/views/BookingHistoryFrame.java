@@ -1,32 +1,18 @@
 package views;
 
-import java.awt.BorderLayout;
-import java.awt.FlowLayout;
+import java.awt.*;
 import java.sql.SQLException;
-
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
-import javax.swing.ListSelectionModel;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 
 import dao.PaymentDAO;
 import models.Payment;
 
 /**
- * Booking History and Cancellation Frame (Member 5).
- * 
- * Usage:
- *  new BookingHistoryFrame(loggedInUserId).setVisible(true);
- * 
- * Key Features:
- *  - Displays user's past and active bookings in a JTable.
- *  - Opens digital receipt reading exact method/amount from the payments table.
- *  - Allows ticket cancellation with automated refund calculation.
+ * Booking History and Cancellation Frame (Member 5: Renjitha Raju).
+ * Styled with Theme by Member 6 (Nanditha P V) for cohesive dark aesthetic and high contrast.
  */
 public class BookingHistoryFrame extends JFrame {
 
@@ -46,43 +32,85 @@ public class BookingHistoryFrame extends JFrame {
     };
     private final JTable table = new JTable(model);
 
-    /**
-     * Primary constructor required by the team.
-     * @param userId The ID of the logged-in user.
-     */
     public BookingHistoryFrame(int userId) {
-        super("My Bookings & Tickets");
+        super("My Bookings & Tickets — CineMagic");
         this.userId = userId;
 
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.setRowHeight(24);
+        Theme.applyDarkTheme(this);
+        getContentPane().setLayout(new BorderLayout());
 
+        // 1. Header Banner
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Theme.BG_HEADER);
+        headerPanel.setBorder(new EmptyBorder(16, 24, 16, 24));
+
+        JLabel lblTitle = new JLabel("🎟️  My Booking History");
+        lblTitle.setFont(Theme.FONT_TITLE);
+        lblTitle.setForeground(Theme.TEXT_LIGHT); // High-contrast visible white
+        headerPanel.add(lblTitle, BorderLayout.WEST);
+
+        JLabel lblSub = new JLabel("View digital receipts or manage bookings");
+        lblSub.setFont(Theme.FONT_BODY);
+        lblSub.setForeground(Theme.TEXT_MUTED);
+        headerPanel.add(lblSub, BorderLayout.EAST);
+
+        getContentPane().add(headerPanel, BorderLayout.NORTH);
+
+        // 2. Table Setup with Theme Styling
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setRowHeight(34);
+        table.setFont(Theme.FONT_BODY);
+        table.setBackground(Theme.BG_CARD);
+        table.setForeground(Theme.TEXT_LIGHT);
+        table.setSelectionBackground(Theme.PRIMARY);
+        table.setSelectionForeground(Color.WHITE);
+        table.setGridColor(Theme.BORDER_COLOR);
+
+        table.getTableHeader().setReorderingAllowed(false);
+        table.getTableHeader().setBackground(Theme.BG_HEADER);
+        table.getTableHeader().setForeground(Theme.ACCENT_CYAN);
+        table.getTableHeader().setFont(Theme.FONT_BODY_BOLD);
+        table.getTableHeader().setPreferredSize(new Dimension(0, 36));
+
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        for (int i = 0; i < table.getColumnCount(); i++) {
+            table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+        }
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.getViewport().setBackground(Theme.BG_DARK);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder(12, 20, 12, 20));
+        getContentPane().add(scrollPane, BorderLayout.CENTER);
+
+        // 3. Bottom Action Bar with Styled Buttons
         JButton btnRefresh = new JButton("Refresh");
-        JButton btnReceipt = new JButton("View Receipt");
+        Theme.styleSecondaryButton(btnRefresh);
+
+        JButton btnReceipt = new JButton("View E-Ticket");
+        Theme.stylePrimaryButton(btnReceipt);
+
         JButton btnCancel = new JButton("Cancel Booking");
+        Theme.styleDangerButton(btnCancel);
 
         btnRefresh.addActionListener(e -> loadData());
         btnReceipt.addActionListener(e -> viewReceipt());
         btnCancel.addActionListener(e -> cancelSelected());
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 14, 14));
+        buttons.setBackground(Theme.BG_HEADER);
         buttons.add(btnRefresh);
         buttons.add(btnReceipt);
         buttons.add(btnCancel);
 
-        getContentPane().setLayout(new BorderLayout());
-        getContentPane().add(new JScrollPane(table), BorderLayout.CENTER);
         getContentPane().add(buttons, BorderLayout.SOUTH);
 
-        setSize(850, 440);
+        setSize(920, 500);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         loadData();
     }
 
-    /**
-     * Loads the booking history rows for the user.
-     */
     private void loadData() {
         model.setRowCount(0);
         try {
@@ -103,10 +131,6 @@ public class BookingHistoryFrame extends JFrame {
         return row;
     }
 
-    /**
-     * Displays the digital receipt for a confirmed booking.
-     * Reads the payment method and amount directly from the payments table.
-     */
     private void viewReceipt() {
         int row = selectedRow();
         if (row < 0) {
@@ -130,7 +154,6 @@ public class BookingHistoryFrame extends JFrame {
             return;
         }
 
-        // Query payments table to read the real method, amount, and transaction_ref
         Payment payment = dao.getPaymentByBookingId(id);
         String method = (payment != null && payment.getMethod() != null) ? payment.getMethod() : "CARD";
         double amount = (payment != null && payment.getAmount() > 0)
@@ -143,9 +166,6 @@ public class BookingHistoryFrame extends JFrame {
         new TicketReceiptDialog(this, id, info[0], info[1], info[2], amount, method, refCode).setVisible(true);
     }
 
-    /**
-     * Cancels the selected booking with transaction protection and tiered refund.
-     */
     private void cancelSelected() {
         int row = selectedRow();
         if (row < 0) {
@@ -196,7 +216,6 @@ public class BookingHistoryFrame extends JFrame {
         }
     }
 
-    // Standalone test
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new BookingHistoryFrame(1).setVisible(true));
     }

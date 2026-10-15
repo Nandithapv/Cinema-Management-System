@@ -78,5 +78,23 @@ As Master Integration & QA Lead, Member 6 was tasked with:
 
 ---
 
-## 4. Final QA Conclusion
-All 6 modules now operate in complete harmony. Compilation was verified with OpenJDK with **zero warnings and zero errors**. The application is verified ready for deployment, grading, and presentation.
+## 4. Live Verification Checklist (Manual Sign-Off)
+
+Conducted and verified on local environment with active MySQL database instance:
+
+| # | Test Scenario / Check | Result | Verification Notes |
+|:---:|---|:---:|---|
+| 1 | **Card payment + receipt** | ✅ Pass | Card payment processed, transaction saved, digital receipt displayed & exportable |
+| 2 | **Seat selection (2 seats = Rs. 300)** | ✅ Pass | Live seat toggling correctly calculated total dynamic ticket price |
+| 3 | **Payment validation popup** | ✅ Pass | Form field validation alerts triggered on invalid or missing payment inputs |
+| 4 | **My Bookings** | ✅ Pass | Historical customer bookings rendered accurately with show and seat details |
+| 5 | **UPI payment** | ✅ Pass | UPI strategy executed and verified with reference ID generation |
+| 6 | **Inception (no shows)** | ✅ Pass | Handled movies with zero active showtimes cleanly without runtime exceptions |
+| 7 | **Double-booking blocked** | ✅ Pass | Concurrent / duplicate seat selection rejected and integrity maintained |
+| 8 | **Bookings isolated per user account** | ✅ Pass | Session isolation verified; users only see their own respective booking history |
+| 9 | **Data in MySQL** | ✅ Pass | All records confirmed persisted into relational tables (`bookings`, `booking_details`, `payments`) |
+
+---
+
+## 5. Final QA Conclusion
+All 6 modules now operate in complete harmony. Compilation was verified with OpenJDK with **zero warnings and zero errors**. All manual and integration test scenarios have passed sign-off. The application is verified ready for deployment, grading, and presentation.

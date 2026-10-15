@@ -169,7 +169,7 @@ public class TicketReceiptDialog extends JDialog {
                 // Hall & Format Subtitle
                 g2.setColor(ACCENT_GOLD);
                 g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
-                g2.drawString("CINEMAGIC  •  " + screenName + "  •  DOLBY ATMOS", 16, h - 16);
+                g2.drawString("CINEVA  •  " + screenName + "  •  DOLBY ATMOS", 16, h - 16);
 
                 g2.dispose();
             }

@@ -33,7 +33,7 @@ public class BookingHistoryFrame extends JFrame {
     private final JTable table = new JTable(model);
 
     public BookingHistoryFrame(int userId) {
-        super("My Bookings & Tickets — CineMagic");
+        super("My Bookings & Tickets — Cineva");
         this.userId = userId;
 
         Theme.applyDarkTheme(this);

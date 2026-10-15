@@ -38,7 +38,7 @@ public class CustomerHomeFrame extends JFrame {
     private final List<JButton> filterPillButtons = new ArrayList<>();
 
     public CustomerHomeFrame() {
-        super("CineMagic — Cinema Management System");
+        super("Cineva — Cinema Management System");
         resolveCurrentUser();
         initUI();
         loadMovies();
@@ -130,7 +130,7 @@ public class CustomerHomeFrame extends JFrame {
         textStack.setLayout(new BoxLayout(textStack, BoxLayout.Y_AXIS));
         textStack.setOpaque(false);
 
-        JLabel brand = new JLabel("CINEMAGIC");
+        JLabel brand = new JLabel("CINEVA");
         brand.setFont(Theme.FONT_BRAND);
         brand.setForeground(Theme.TEXT_LIGHT);
         textStack.add(brand);

@@ -19,7 +19,7 @@
 ---
 
 ## 1. Executive Summary & Project Overview
-The **Cinema Management System (CineMagic)** is an enterprise-grade desktop application engineered in Java Swing that automates all essential operations of a modern multiplex cinema. It bridges customer movie discovery and ticket booking with administrator catalog management, show scheduling, and theater capacity management.
+The **Cinema Management System (Cineva)** is an enterprise-grade desktop application engineered in Java Swing that automates all essential operations of a modern multiplex cinema. It bridges customer movie discovery and ticket booking with administrator catalog management, show scheduling, and theater capacity management.
 
 ### Key Objectives Achieved:
 - **Zero-Loss Transactional Reservation:** Atomically reserves multiple theater seats with rollback safety to prevent race conditions or double bookings.

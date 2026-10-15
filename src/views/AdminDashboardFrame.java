@@ -24,7 +24,7 @@ public class AdminDashboardFrame extends JFrame {
         headerPanel.setBackground(new Color(33, 37, 41));
         headerPanel.setBorder(new EmptyBorder(12, 20, 12, 20));
 
-        JLabel titleLabel = new JLabel("🎬 Admin Portal — CineMagic", SwingConstants.LEFT);
+        JLabel titleLabel = new JLabel("🎬 Admin Portal — Cineva", SwingConstants.LEFT);
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
         titleLabel.setForeground(Color.WHITE);
         headerPanel.add(titleLabel, BorderLayout.WEST);

@@ -26,7 +26,7 @@ public class Main {
         // Launch application on Swing Event Dispatch Thread (EDT)
         SwingUtilities.invokeLater(() -> {
             System.out.println("==================================================");
-            System.out.println("  🎬 CineMagic — Cinema Management System");
+            System.out.println("  🎬 Cineva — Cinema Management System");
             System.out.println("  Integration & UI Module by Nanditha P V");
             System.out.println("==================================================");
 

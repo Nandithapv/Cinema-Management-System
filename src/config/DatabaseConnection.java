@@ -18,7 +18,7 @@ public class DatabaseConnection {
                 connection = DriverManager.getConnection(
                     "jdbc:mysql://localhost:3306/CinemaManagement",
                     "root",
-                    "nandana@2007"
+                    "YOUR_MYSQL_PASSWORD"
                 );
 
                 System.out.println("Database connected successfully!");

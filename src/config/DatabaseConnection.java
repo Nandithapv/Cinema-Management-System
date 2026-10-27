@@ -15,7 +15,8 @@ import java.util.Properties;
  * Rules:
  * - ONE shared Singleton connection across the entire application.
  * - Reconnects automatically if null or closed.
- * - Reads credentials from db.properties (ignored by git), with resilient fallbacks.
+ * - Reads credentials from db.properties (ignored by git). No password is stored in the code:
+ *   copy db.properties.example to db.properties and fill in your own MySQL details.
  */
 public class DatabaseConnection {
 
@@ -30,7 +31,7 @@ public class DatabaseConnection {
             if (connection == null || connection.isClosed()) {
                 String url = "jdbc:mysql://localhost:3306/CinemaManagement?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
                 String user = "root";
-                String password = "nandana@2007"; // default fallback
+                String password = "";   // set the real one in db.properties
 
                 File propsFile = new File("db.properties");
                 if (propsFile.exists()) {
@@ -51,6 +52,9 @@ public class DatabaseConnection {
                     } catch (IOException e) {
                         System.err.println("[DatabaseConnection] Error reading db.properties: " + e.getMessage());
                     }
+                } else {
+                    System.err.println("[DatabaseConnection] db.properties not found. "
+                            + "Copy db.properties.example to db.properties and enter your MySQL password.");
                 }
 
                 connection = DriverManager.getConnection(url, user, password);

@@ -1,5 +1,6 @@
 package views;
 
+import com.formdev.flatlaf.FlatDarkLaf;
 import dao.BookingDAO;
 import dao.PaymentDAO;
 import dao.ShowDAO;
@@ -10,43 +11,43 @@ import services.SessionManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.LineBorder;
 import java.awt.*;
-import java.awt.event.ItemEvent;
+import java.awt.geom.Path2D;
+import java.awt.geom.QuadCurve2D;
+import java.awt.geom.RoundRectangle2D;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.List;
 
 /**
- * Visual Interactive Seat Grid & Booking Screen (Member 4: Shada).
- * 
+ * Visual Interactive Seat Grid & Booking Screen (Member 4: Shada), restyled to match the Cineva home page.
+ *
  * Features:
  *  - 6 Rows (A–F) x 10 Columns (1–10) theater seat matrix.
- *  - Dynamic seat coloring with JToggleButton:
- *      🟢 Green: Available
- *      🟡 Yellow: Selected
- *      🔴 Red (Disabled): Already booked for this show
+ *  - Seat states drawn on a dark page:
+ *      outlined  : Available
+ *      white     : Selected
+ *      dimmed    : Already booked for this show
  *  - Real-time live price calculation: Count of selected seats x Ticket Price.
  *  - Atomic JDBC Transaction on checkout via BookingDAO.
  *  - Payment integration: Opens PaymentDialog, releases booking if canceled without paying.
- * 
+ *
  * OOP Concepts for Viva:
  *  - Encapsulation: Seat states encapsulated in model and toggle listeners.
  *  - State Management: State transition (Available -> Selected -> Booked).
  *  - Event Handling & Delegation: Decoupled UI and DAO layers.
+ *
+ * Only the look changed: seat, booking and payment logic is exactly as before.
  */
 public class SeatSelectionFrame extends JFrame {
 
     private static final int ROWS = 6;  // Rows A - F
     private static final int COLS = 10; // Columns 1 - 10
 
-    // Color Palette
-    private static final Color COLOR_AVAILABLE = new Color(46, 125, 50);    // Green
-    private static final Color COLOR_SELECTED  = new Color(249, 168, 37);   // Yellow/Amber
-    private static final Color COLOR_BOOKED    = new Color(198, 40, 40);    // Red
-    private static final Color COLOR_SCREEN_BAR = new Color(55, 71, 79);    // Dark Slate
-    private static final Color COLOR_BG         = new Color(245, 247, 250); // Light Gray
-    private static final Color COLOR_PANEL_BG   = Color.WHITE;
+    private static final Color BG = CinevaUI.BG;
+    private static final Color TEXT = CinevaUI.TEXT;
+    private static final Color DIM = CinevaUI.DIM;
+    private static final Color LINE = CinevaUI.LINE;
 
     private final Show show;
     private final User user;
@@ -97,11 +98,12 @@ public class SeatSelectionFrame extends JFrame {
     private void initUI() {
         String movieTitle = (show != null && show.getMovieTitle() != null) ? show.getMovieTitle() : "Cinema Show";
         setTitle("Seat Selection — " + movieTitle);
-        setSize(960, 680);
+        setSize(CinevaUI.fit(1000, 740));
+        setMinimumSize(CinevaUI.fit(860, 620));
         setLocationRelativeTo(null);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        getContentPane().setBackground(COLOR_BG);
-        getContentPane().setLayout(new BorderLayout(12, 12));
+        getContentPane().setBackground(BG);
+        getContentPane().setLayout(new BorderLayout());
 
         // 1. TOP PANEL: Movie & Show Info
         add(createHeaderPanel(), BorderLayout.NORTH);
@@ -114,64 +116,55 @@ public class SeatSelectionFrame extends JFrame {
     }
 
     private JPanel createHeaderPanel() {
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(COLOR_PANEL_BG);
-        header.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(220, 224, 230)),
-                new EmptyBorder(16, 24, 16, 24)
-        ));
+        JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        header.setBorder(new EmptyBorder(28, 40, 6, 40));
 
         String title = (show != null && show.getMovieTitle() != null) ? show.getMovieTitle() : "Movie Title";
         String screen = (show != null && show.getScreenName() != null) ? show.getScreenName() : "Screen 1";
         String date = (show != null && show.getShowDate() != null) ? show.getShowDate().toString() : "";
         String time = (show != null && show.getShowTime() != null) ? show.getShowTime().toString().substring(0, 5) : "";
 
-        JLabel lblTitle = new JLabel("🎬 " + title);
-        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        lblTitle.setForeground(new Color(33, 37, 41));
+        CinevaUI.TrackedText lblTitle = CinevaUI.TrackedText.light(title, 32f, Color.WHITE, 0.03f);
+        lblTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        header.add(lblTitle);
+        header.add(Box.createVerticalStrut(10));
 
-        JLabel lblDetails = new JLabel(String.format("Screen: %s   |   Date: %s   |   Time: %s   |   Ticket Price: Rs. %.2f",
-                screen, date, time, ticketPrice));
-        lblDetails.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        lblDetails.setForeground(new Color(108, 117, 125));
-
-        header.add(lblTitle, BorderLayout.NORTH);
-        header.add(lblDetails, BorderLayout.SOUTH);
+        JPanel chips = new CinevaUI.ChipRow();
+        chips.add(new CinevaUI.Chip(screen, new Color(150, 205, 255)));
+        if (!date.isEmpty()) {
+            chips.add(new CinevaUI.Chip(date, DIM));
+        }
+        if (!time.isEmpty()) {
+            chips.add(new CinevaUI.Chip(time, DIM));
+        }
+        chips.add(new CinevaUI.Chip(String.format("Rs. %.2f per seat", ticketPrice), new Color(255, 196, 62)));
+        header.add(chips);
         return header;
     }
 
     private JPanel createCenterPanel() {
-        JPanel centerContainer = new JPanel(new BorderLayout(0, 10));
-        centerContainer.setBackground(COLOR_BG);
-        centerContainer.setBorder(new EmptyBorder(10, 24, 10, 24));
+        JPanel centerContainer = new JPanel(new BorderLayout(0, 8));
+        centerContainer.setOpaque(false);
+        centerContainer.setBorder(new EmptyBorder(8, 40, 6, 40));
 
         // Cinema Screen Graphic
-        JPanel screenBarPanel = new JPanel();
-        screenBarPanel.setBackground(COLOR_BG);
-        screenBarPanel.setLayout(new BorderLayout());
-        screenBarPanel.setBorder(new EmptyBorder(0, 40, 10, 40));
+        centerContainer.add(new ScreenCurve(), BorderLayout.NORTH);
 
-        JLabel lblScreen = new JLabel("——————  SCREEN THIS WAY  ——————", SwingConstants.CENTER);
-        lblScreen.setOpaque(true);
-        lblScreen.setBackground(COLOR_SCREEN_BAR);
-        lblScreen.setForeground(Color.WHITE);
-        lblScreen.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        lblScreen.setPreferredSize(new Dimension(600, 26));
-        lblScreen.setBorder(new LineBorder(new Color(38, 50, 56), 1, true));
-        screenBarPanel.add(lblScreen, BorderLayout.CENTER);
+        // 6 x 10 Seat Grid (with a row letter at the start of each row)
+        CinevaUI.RoundPanel card = new CinevaUI.RoundPanel(new BorderLayout(), new Color(10, 10, 13), new Color(34, 35, 42), 26);
+        card.setBorder(new EmptyBorder(22, 30, 22, 30));
 
-        centerContainer.add(screenBarPanel, BorderLayout.NORTH);
-
-        // 6 x 10 Seat Grid
-        JPanel seatGridPanel = new JPanel(new GridLayout(ROWS, COLS, 10, 10));
-        seatGridPanel.setBackground(COLOR_PANEL_BG);
-        seatGridPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
-                new EmptyBorder(20, 25, 20, 25)
-        ));
+        JPanel seatGridPanel = new JPanel(new GridLayout(ROWS, COLS + 1, 8, 8));
+        seatGridPanel.setOpaque(false);
 
         for (int r = 0; r < ROWS; r++) {
             char rowChar = (char) ('A' + r);
+            JLabel rowLabel = new JLabel("" + rowChar, SwingConstants.CENTER);
+            rowLabel.setFont(CustomerHomeFrame.Fonts.get(true, 12f));
+            rowLabel.setForeground(DIM);
+            seatGridPanel.add(rowLabel);
             for (int c = 1; c <= COLS; c++) {
                 String seatNum = "" + rowChar + c;
                 SeatButton btnSeat = new SeatButton(seatNum);
@@ -187,8 +180,8 @@ public class SeatSelectionFrame extends JFrame {
                 seatGridPanel.add(btnSeat);
             }
         }
-
-        centerContainer.add(seatGridPanel, BorderLayout.CENTER);
+        card.add(seatGridPanel, BorderLayout.CENTER);
+        centerContainer.add(card, BorderLayout.CENTER);
 
         // Legend at bottom of center panel
         centerContainer.add(createLegendPanel(), BorderLayout.SOUTH);
@@ -197,75 +190,84 @@ public class SeatSelectionFrame extends JFrame {
     }
 
     private JPanel createLegendPanel() {
-        JPanel legendPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 25, 5));
-        legendPanel.setBackground(COLOR_BG);
+        JPanel legendPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 28, 8));
+        legendPanel.setOpaque(false);
 
-        legendPanel.add(createLegendItem("Available", COLOR_AVAILABLE));
-        legendPanel.add(createLegendItem("Selected", COLOR_SELECTED));
-        legendPanel.add(createLegendItem("Booked", COLOR_BOOKED));
+        legendPanel.add(createLegendItem("Available", 0));
+        legendPanel.add(createLegendItem("Selected", 1));
+        legendPanel.add(createLegendItem("Booked", 2));
 
         return legendPanel;
     }
 
-    private JPanel createLegendItem(String label, Color color) {
-        JPanel item = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        item.setBackground(COLOR_BG);
+    private JPanel createLegendItem(String label, int kind) {
+        JPanel item = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        item.setOpaque(false);
 
-        JLabel colorBox = new JLabel();
-        colorBox.setOpaque(true);
-        colorBox.setBackground(color);
-        colorBox.setPreferredSize(new Dimension(16, 16));
-        colorBox.setBorder(new LineBorder(Color.DARK_GRAY, 1));
+        JComponent swatch = new JComponent() {
+            @Override
+            protected void paintComponent(Graphics g0) {
+                Graphics2D g = (Graphics2D) g0.create();
+                CustomerHomeFrame.aa(g);
+                paintSeatShape(g, 0, 0, getWidth(), getHeight(), kind, false);
+                g.dispose();
+            }
+        };
+        swatchSize(swatch);
 
         JLabel lbl = new JLabel(label);
-        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lbl.setFont(CustomerHomeFrame.Fonts.get(false, 12.5f));
+        lbl.setForeground(new Color(168, 172, 182));
 
-        item.add(colorBox);
+        item.add(swatch);
         item.add(lbl);
         return item;
     }
 
+    private static void swatchSize(JComponent c) {
+        c.setPreferredSize(new Dimension(20, 16));
+    }
+
     private JPanel createFooterPanel() {
         JPanel footer = new JPanel(new BorderLayout());
-        footer.setBackground(COLOR_PANEL_BG);
-        footer.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(220, 224, 230)),
-                new EmptyBorder(14, 24, 14, 24)
-        ));
+        footer.setOpaque(false);
+        footer.setBorder(new EmptyBorder(10, 40, 26, 40));
 
         // Left info: Selected seats + Total
-        JPanel summaryPanel = new JPanel(new GridLayout(2, 1, 4, 4));
-        summaryPanel.setBackground(COLOR_PANEL_BG);
+        JPanel summaryPanel = new JPanel();
+        summaryPanel.setOpaque(false);
+        summaryPanel.setLayout(new BoxLayout(summaryPanel, BoxLayout.Y_AXIS));
 
-        lblSelectedSeats = new JLabel("Selected Seats: None");
-        lblSelectedSeats.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        lblSelectedSeats.setForeground(new Color(33, 37, 41));
+        CinevaUI.TrackedText cap = CinevaUI.TrackedText.caps("Your seats", DIM);
+        cap.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        lblTotalAmount = new JLabel("Total: Rs. 0.00 (0 seats)");
-        lblTotalAmount.setFont(new Font("Segoe UI", Font.BOLD, 15));
-        lblTotalAmount.setForeground(new Color(46, 125, 50));
+        lblSelectedSeats = new JLabel("None");
+        lblSelectedSeats.setFont(CustomerHomeFrame.Fonts.get(true, 16f));
+        lblSelectedSeats.setForeground(Color.WHITE);
+        lblSelectedSeats.setAlignmentX(Component.LEFT_ALIGNMENT);
 
+        lblTotalAmount = new JLabel("Rs. 0.00  ·  0 seats");
+        lblTotalAmount.setFont(CustomerHomeFrame.Fonts.get(false, 13f));
+        lblTotalAmount.setForeground(new Color(168, 172, 182));
+        lblTotalAmount.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        summaryPanel.add(cap);
+        summaryPanel.add(Box.createVerticalStrut(2));
         summaryPanel.add(lblSelectedSeats);
+        summaryPanel.add(Box.createVerticalStrut(2));
         summaryPanel.add(lblTotalAmount);
 
         // Right buttons: Refresh + Cancel + Proceed
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        btnPanel.setBackground(COLOR_PANEL_BG);
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+        btnPanel.setOpaque(false);
 
-        JButton btnRefresh = new JButton("🔄 Refresh Seats");
-        btnRefresh.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        JButton btnRefresh = CinevaUI.pill("Refresh seats", CinevaUI.OUTLINE);
         btnRefresh.addActionListener(e -> refreshSeatMatrix());
 
-        JButton btnClose = new JButton("Close");
-        btnClose.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        JButton btnClose = CinevaUI.pill("Close", CinevaUI.OUTLINE);
         btnClose.addActionListener(e -> dispose());
 
-        btnBook = new JButton("Proceed to Payment ➔");
-        btnBook.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        btnBook.setBackground(new Color(33, 150, 243));
-        btnBook.setForeground(Color.WHITE);
-        btnBook.setFocusPainted(false);
-        btnBook.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnBook = CinevaUI.pill("Proceed to payment →", CinevaUI.SOLID);
         btnBook.setEnabled(false);
         btnBook.addActionListener(e -> handleBookingProcess());
 
@@ -273,8 +275,12 @@ public class SeatSelectionFrame extends JFrame {
         btnPanel.add(btnClose);
         btnPanel.add(btnBook);
 
+        JPanel btnWrap = new JPanel(new GridBagLayout());     // vertically centre the buttons
+        btnWrap.setOpaque(false);
+        btnWrap.add(btnPanel);
+
         footer.add(summaryPanel, BorderLayout.WEST);
-        footer.add(btnPanel, BorderLayout.EAST);
+        footer.add(btnWrap, BorderLayout.EAST);
         return footer;
     }
 
@@ -304,7 +310,7 @@ public class SeatSelectionFrame extends JFrame {
 
         // Fetch all screen seats from database
         List<Seat> seats = bookingDAO.getSeatsByScreen(show.getScreenId());
-        
+
         // Offline / Standalone test fallback: if DB has no seats or is offline, generate A1-F10 in memory
         if (seats.isEmpty()) {
             int dummyId = 1;
@@ -371,8 +377,8 @@ public class SeatSelectionFrame extends JFrame {
         double total = count * ticketPrice;
 
         if (count == 0) {
-            lblSelectedSeats.setText("Selected Seats: None");
-            lblTotalAmount.setText("Total: Rs. 0.00 (0 seats)");
+            lblSelectedSeats.setText("None");
+            lblTotalAmount.setText("Rs. 0.00  ·  0 seats");
             btnBook.setEnabled(false);
         } else {
             List<String> names = new ArrayList<>();
@@ -380,8 +386,8 @@ public class SeatSelectionFrame extends JFrame {
                 names.add(s.getSeatNumber());
             }
             Collections.sort(names);
-            lblSelectedSeats.setText("Selected Seats: " + String.join(", ", names));
-            lblTotalAmount.setText(String.format("Total: Rs. %.2f (%d seat%s)", total, count, count > 1 ? "s" : ""));
+            lblSelectedSeats.setText(String.join(", ", names));
+            lblTotalAmount.setText(String.format("Rs. %.2f  ·  %d seat%s", total, count, count > 1 ? "s" : ""));
             btnBook.setEnabled(true);
         }
     }
@@ -434,7 +440,7 @@ public class SeatSelectionFrame extends JFrame {
             } else {
                 // Payment was successful!
                 JOptionPane.showMessageDialog(this, "Booking & Payment confirmed! Enjoy your show!", "Success", JOptionPane.INFORMATION_MESSAGE);
-                loadSeatsFromDatabase(); // Refresh seats: booked seats now turn red!
+                loadSeatsFromDatabase(); // Refresh seats: booked seats now turn dim!
             }
 
         } catch (SQLException ex) {
@@ -448,9 +454,7 @@ public class SeatSelectionFrame extends JFrame {
      */
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            try {
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception ignored) {}
+            FlatDarkLaf.setup();
 
             // Mock show for quick preview
             Show sampleShow = new Show();
@@ -469,21 +473,94 @@ public class SeatSelectionFrame extends JFrame {
         });
     }
 
+    // =====================================================================
+    //  Drawing
+    // =====================================================================
+
+    /** kind: 0 = available (outline), 1 = selected (white), 2 = booked (dim). */
+    private static void paintSeatShape(Graphics2D g, int x, int y, int w, int h, int kind, boolean hover) {
+        float arc = Math.min(w, h) * 0.38f;
+        RoundRectangle2D r = new RoundRectangle2D.Float(x + 1.5f, y + 1.5f, w - 3, h - 3, arc, arc);
+        if (kind == 1) {
+            g.setColor(Color.WHITE);
+            g.fill(r);
+        } else if (kind == 2) {
+            g.setColor(new Color(20, 20, 25));
+            g.fill(r);
+            g.setColor(new Color(34, 35, 42));
+            g.setStroke(new BasicStroke(1f));
+            g.draw(r);
+        } else {
+            g.setColor(hover ? new Color(30, 30, 38) : new Color(15, 15, 20));
+            g.fill(r);
+            g.setColor(hover ? new Color(190, 194, 204) : new Color(88, 92, 102));
+            g.setStroke(new BasicStroke(1.2f));
+            g.draw(r);
+        }
+    }
+
+    /** Glowing curved screen above the seats. */
+    private static class ScreenCurve extends JComponent {
+        ScreenCurve() {
+            setPreferredSize(new Dimension(100, 62));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g0) {
+            Graphics2D g = (Graphics2D) g0.create();
+            CustomerHomeFrame.aa(g);
+            int w = getWidth();
+            float x0 = w * 0.14f;
+            float x1 = w * 0.86f;
+            QuadCurve2D curve = new QuadCurve2D.Float(x0, 40, w / 2f, 4, x1, 40);
+
+            // soft light falling towards the seats
+            Path2D cone = new Path2D.Float();
+            cone.moveTo(x0, 40);
+            cone.quadTo(w / 2f, 4, x1, 40);
+            cone.lineTo(x1 + 30, 62);
+            cone.lineTo(x0 - 30, 62);
+            cone.closePath();
+            g.setPaint(new GradientPaint(0, 22, new Color(255, 255, 255, 34), 0, 62, new Color(255, 255, 255, 0)));
+            g.fill(cone);
+
+            for (int i = 3; i >= 1; i--) {
+                g.setColor(new Color(255, 255, 255, 14 * (4 - i)));
+                g.setStroke(new BasicStroke(2f + i * 3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.draw(curve);
+            }
+            g.setColor(new Color(235, 238, 245));
+            g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.draw(curve);
+
+            g.setFont(CustomerHomeFrame.Fonts.get(true, 10.5f));
+            FontMetrics fm = g.getFontMetrics();
+            String s = "SCREEN";
+            float tw = CustomerHomeFrame.trackedWidth(fm, s, 3f);
+            g.setColor(DIM);
+            CustomerHomeFrame.drawTracked(g, s, (w - tw) / 2f, 40 + fm.getAscent() + 4, 3f);
+            g.dispose();
+        }
+    }
+
     /**
-     * Custom JToggleButton with explicit anti-aliased painting.
-     * Guarantees vivid Green, Yellow, and Red colors across all Windows/Mac Look & Feels.
+     * Custom JToggleButton with explicit anti-aliased painting: outlined = available,
+     * white = selected, dimmed = booked. Works the same on every look and feel.
      */
     private static class SeatButton extends JToggleButton {
         private Seat.SeatStatus seatStatus = Seat.SeatStatus.AVAILABLE;
+        private final String label;
 
         public SeatButton(String text) {
             super(text);
+            this.label = text.length() > 1 ? text.substring(1) : text;   // "A5" -> "5" (the row letter is on the left)
             setContentAreaFilled(false);
             setFocusPainted(false);
             setBorderPainted(false);
             setOpaque(false);
+            setRolloverEnabled(true);
             setCursor(new Cursor(Cursor.HAND_CURSOR));
-            setFont(new Font("Segoe UI", Font.BOLD, 12));
+            setFont(CustomerHomeFrame.Fonts.get(true, 12.5f));
             setPreferredSize(new Dimension(54, 42));
         }
 
@@ -509,38 +586,28 @@ public class SeatSelectionFrame extends JFrame {
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            CustomerHomeFrame.aa(g2);
 
-            Color bgColor;
+            int kind;
             Color textColor;
-
             if (seatStatus == Seat.SeatStatus.BOOKED) {
-                bgColor = COLOR_BOOKED; // Red
-                textColor = Color.WHITE;
+                kind = 2;
+                textColor = new Color(70, 72, 80);
             } else if (isSelected() || seatStatus == Seat.SeatStatus.SELECTED) {
-                bgColor = COLOR_SELECTED; // Vibrant Gold/Yellow
-                textColor = new Color(26, 26, 26);
+                kind = 1;
+                textColor = new Color(12, 12, 14);
             } else {
-                bgColor = COLOR_AVAILABLE; // Emerald Green
-                textColor = Color.WHITE;
+                kind = 0;
+                textColor = getModel().isRollover() ? Color.WHITE : new Color(190, 194, 202);
             }
+            paintSeatShape(g2, 0, 0, getWidth(), getHeight(), kind, getModel().isRollover());
 
-            // Draw rounded pill button background
-            g2.setColor(bgColor);
-            g2.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 10, 10);
-
-            // Draw subtle border
-            g2.setColor(bgColor.darker());
-            g2.setStroke(new BasicStroke(1.2f));
-            g2.drawRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 10, 10);
-
-            // Draw centered seat number
             g2.setColor(textColor);
             g2.setFont(getFont());
             FontMetrics fm = g2.getFontMetrics();
-            int x = (getWidth() - fm.stringWidth(getText())) / 2;
+            int x = (getWidth() - fm.stringWidth(label)) / 2;
             int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
-            g2.drawString(getText(), x, y);
+            g2.drawString(label, x, y);
 
             g2.dispose();
         }

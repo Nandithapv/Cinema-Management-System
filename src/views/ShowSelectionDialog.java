@@ -1,33 +1,32 @@
 package views;
 
+import dao.MovieDAO;
 import dao.ShowDAO;
+import models.Movie;
 import models.Show;
 import models.User;
 import services.SessionManager;
 
-import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
- * Modern Mobile-App-Style Movie Detail & Showtime Selection Dialog.
- * Connects Movie browsing (Member 6: Nanditha) to Seat Selection (Member 4: Shada).
- * 
- * Inspired by mobile cinema apps (Pinterest):
- * - Large cinematic backdrop banner with poster art & gradient overlay
- * - Badges: Rating ★, Genre chip, Duration & Language tags
- * - Movie synopsis overview
- * - Interactive showtime selection table with high-contrast styling
- * - Seamless handoff to SeatSelectionFrame
+ * Movie Detail & Showtime Selection Dialog (Member 6: Nanditha), restyled to match the Cineva home page.
+ * Connects Movie browsing to Seat Selection (Member 4: Shada).
+ *
+ * Layout: poster on the left; thin title, tags and synopsis on the right; showtimes as rounded rows
+ * you click to select (double-click goes straight to the seats); pill buttons at the bottom.
+ * Constructors, listener interface and the hand-off to SeatSelectionFrame are unchanged.
  */
 public class ShowSelectionDialog extends JDialog {
 
@@ -36,20 +35,20 @@ public class ShowSelectionDialog extends JDialog {
         void onShowSelected(int showId, String movieTitle, String screenName, String dateTime, double price);
     }
 
+    private static final Color GOLD = new Color(255, 196, 62);
+    private static final Color SKY = new Color(150, 205, 255);
+    private static final int ROW_H = 60, GAP = 8;
+
     private final int movieId;
     private final String movieTitle;
     private final User currentUser;
     private final OnShowSelectedListener onShowSelected;
     private final List<Show> showsList = new ArrayList<>();
 
-    private final DefaultTableModel tableModel = new DefaultTableModel(
-        new String[] { "Show ID", "Screen Hall", "Date", "Showtime", "Ticket Price" }, 0
-    ) {
-        @Override
-        public boolean isCellEditable(int row, int col) { return false; }
-    };
-
-    private final JTable table = new JTable(tableModel);
+    private Movie movie;                       // real genre / duration / language (null if DB unavailable)
+    private BufferedImage poster;
+    private final JComponent posterBox = new PosterBox();
+    private final ShowList list = new ShowList();
 
     public ShowSelectionDialog(Frame parent, int movieId, String movieTitle, User user, OnShowSelectedListener listener) {
         super(parent, "Movie Details — " + movieTitle, true);
@@ -58,7 +57,14 @@ public class ShowSelectionDialog extends JDialog {
         this.currentUser = (user != null) ? user : SessionManager.getCurrentUser();
         this.onShowSelected = listener;
 
+        try {
+            this.movie = new MovieDAO().getById(movieId);
+        } catch (Throwable t) {
+            System.err.println("[ShowSelectionDialog] movie details unavailable: " + t.getMessage());
+        }
+
         initUI();
+        loadPoster();
         loadShows();
     }
 
@@ -82,185 +88,312 @@ public class ShowSelectionDialog extends JDialog {
         super.setVisible(visible);
     }
 
+    // =====================================================================
+    //  Layout
+    // =====================================================================
     private void initUI() {
-        setSize(780, 620);
+        setSize(CinevaUI.fit(900, 660));
+        setMinimumSize(CinevaUI.fit(760, 560));
         setLocationRelativeTo(getParent());
-        getContentPane().setBackground(Theme.BG_DARK);
-        setLayout(new BorderLayout(0, 0));
+        getContentPane().setBackground(CinevaUI.BG);
+        setLayout(new BorderLayout());
 
-        // 1. Top Cinematic Hero Banner with Poster & Details
-        add(createHeroBanner(), BorderLayout.NORTH);
+        add(createHero(), BorderLayout.NORTH);
 
-        // 2. Middle Showtime Selection Table
-        JPanel centerPanel = new JPanel(new BorderLayout());
-        centerPanel.setOpaque(false);
-        centerPanel.setBorder(new EmptyBorder(16, 24, 8, 24));
+        // showtimes
+        JPanel center = new JPanel(new BorderLayout());
+        center.setOpaque(false);
+        center.setBorder(new EmptyBorder(14, 36, 0, 36));
 
-        JLabel lblSection = new JLabel("🎟️  Available Showtimes");
-        lblSection.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        lblSection.setForeground(Theme.TEXT_LIGHT);
-        lblSection.setBorder(new EmptyBorder(0, 0, 10, 0));
-        centerPanel.add(lblSection, BorderLayout.NORTH);
+        JPanel head = new JPanel(new BorderLayout());
+        head.setOpaque(false);
+        head.setBorder(new EmptyBorder(0, 0, 8, 0));
+        head.add(CinevaUI.TrackedText.caps("Available showtimes", CinevaUI.DIM), BorderLayout.WEST);
+        center.add(head, BorderLayout.NORTH);
 
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.setRowHeight(38);
-        table.setFont(Theme.FONT_BODY);
-        table.setBackground(Theme.BG_CARD);
-        table.setForeground(Theme.TEXT_LIGHT);
-        table.setSelectionBackground(Theme.PRIMARY);
-        table.setSelectionForeground(Color.WHITE);
-        table.setGridColor(Theme.BORDER_COLOR);
-        table.setShowGrid(true);
+        JScrollPane sp = new JScrollPane(list);
+        sp.setBorder(null);
+        sp.setOpaque(false);
+        sp.getViewport().setOpaque(false);
+        sp.setColumnHeaderView(new ListHeader());
+        sp.getColumnHeader().setOpaque(false);
+        sp.getVerticalScrollBar().setUnitIncrement(24);
+        center.add(sp, BorderLayout.CENTER);
+        add(center, BorderLayout.CENTER);
 
-        table.getTableHeader().setReorderingAllowed(false);
-        table.getTableHeader().setBackground(Theme.BG_HEADER);
-        table.getTableHeader().setForeground(Theme.ACCENT_CYAN);
-        table.getTableHeader().setFont(Theme.FONT_BODY_BOLD);
-        table.getTableHeader().setPreferredSize(new Dimension(0, 34));
+        // footer
+        JPanel bottom = new JPanel(new BorderLayout());
+        bottom.setOpaque(false);
+        bottom.setBorder(new EmptyBorder(16, 36, 26, 36));
 
-        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
-        centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
-        for (int i = 0; i < table.getColumnCount(); i++) {
-            table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
-        }
-
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.getViewport().setBackground(Theme.BG_DARK);
-        scrollPane.setBorder(BorderFactory.createLineBorder(Theme.BORDER_COLOR, 1, true));
-        centerPanel.add(scrollPane, BorderLayout.CENTER);
-
-        add(centerPanel, BorderLayout.CENTER);
-
-        // 3. Bottom Action Bar
-        JPanel bottomBar = new JPanel(new BorderLayout());
-        bottomBar.setBackground(Theme.BG_HEADER);
-        bottomBar.setBorder(new EmptyBorder(14, 24, 14, 24));
-
-        JLabel lblNote = new JLabel("💡 Pick a showtime and proceed to choose your seats");
-        lblNote.setFont(Theme.FONT_SMALL);
-        lblNote.setForeground(Theme.TEXT_MUTED);
-        bottomBar.add(lblNote, BorderLayout.WEST);
+        JLabel hint = new JLabel("Pick a showtime, then choose your seats");
+        hint.setFont(CustomerHomeFrame.Fonts.get(false, 13f));
+        hint.setForeground(CinevaUI.DIM);
+        bottom.add(hint, BorderLayout.WEST);
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
         actions.setOpaque(false);
-
-        JButton btnBack = new JButton("Back");
-        Theme.styleSecondaryButton(btnBack);
+        JButton btnBack = CinevaUI.pill("Back", CinevaUI.OUTLINE);
         btnBack.addActionListener(e -> dispose());
         actions.add(btnBack);
-
-        JButton btnProceed = new JButton("Select Seats →");
-        Theme.stylePrimaryButton(btnProceed);
+        JButton btnProceed = CinevaUI.pill("Select Seats →", CinevaUI.SOLID);
         btnProceed.addActionListener(e -> handleProceed());
         actions.add(btnProceed);
-
-        bottomBar.add(actions, BorderLayout.EAST);
-        add(bottomBar, BorderLayout.SOUTH);
+        bottom.add(actions, BorderLayout.EAST);
+        add(bottom, BorderLayout.SOUTH);
     }
 
-    /**
-     * Creates cinematic top hero banner featuring the movie poster, title,
-     * tags, and synopsis.
-     */
-    private JPanel createHeroBanner() {
-        JPanel hero = new JPanel(new BorderLayout(18, 0));
-        hero.setBackground(Theme.BG_HEADER);
-        hero.setBorder(new EmptyBorder(20, 24, 20, 24));
+    /** Poster on the left; title, tags and synopsis on the right. */
+    private JPanel createHero() {
+        JPanel hero = new JPanel(new BorderLayout(28, 0));
+        hero.setOpaque(false);
+        hero.setBorder(new EmptyBorder(32, 36, 6, 36));
 
-        // Poster Image Thumbnail
-        BufferedImage img = loadPosterImage(movieTitle);
-        JPanel posterThumb = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                Shape clip = new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 12, 12);
-                g2.setClip(clip);
+        posterBox.setPreferredSize(new Dimension(150, 220));
+        JPanel posterWrap = new JPanel(new BorderLayout());
+        posterWrap.setOpaque(false);
+        posterWrap.add(posterBox, BorderLayout.NORTH);
+        hero.add(posterWrap, BorderLayout.WEST);
 
-                if (img != null) {
-                    g2.drawImage(img, 0, 0, getWidth(), getHeight(), null);
-                } else {
-                    g2.setColor(new Color(36, 32, 64));
-                    g2.fill(clip);
-                    g2.setColor(Theme.ACCENT_CYAN);
-                    g2.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 36));
-                    FontMetrics fm = g2.getFontMetrics();
-                    g2.drawString("🎬", (getWidth() - fm.stringWidth("🎬")) / 2, (getHeight() / 2) + 12);
-                }
-                g2.dispose();
-            }
-        };
-        posterThumb.setPreferredSize(new Dimension(110, 150));
-        posterThumb.setOpaque(false);
-        hero.add(posterThumb, BorderLayout.WEST);
+        JPanel info = new JPanel();
+        info.setOpaque(false);
+        info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
 
-        // Movie Info Stack
-        JPanel infoStack = new JPanel();
-        infoStack.setLayout(new BoxLayout(infoStack, BoxLayout.Y_AXIS));
-        infoStack.setOpaque(false);
+        CinevaUI.TrackedText title = CinevaUI.TrackedText.light(movieTitle == null ? "" : movieTitle, 36f,
+                Color.WHITE, 0.03f);
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+        info.add(title);
+        info.add(Box.createVerticalStrut(12));
 
-        JLabel lblTitle = new JLabel(movieTitle);
-        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 22));
-        lblTitle.setForeground(Theme.TEXT_LIGHT);
-        infoStack.add(lblTitle);
+        JPanel chips = new CinevaUI.ChipRow();
+        chips.add(new CinevaUI.Chip(getRating(movieTitle), GOLD));
+        String genre = (movie != null && movie.getGenre() != null && !movie.getGenre().trim().isEmpty())
+                ? movie.getGenre() : getGenre(movieTitle);
+        chips.add(new CinevaUI.Chip(genre, SKY));
+        if (movie != null && movie.getDuration() > 0) {
+            chips.add(new CinevaUI.Chip(movie.getDuration() + " min", CinevaUI.DIM));
+        }
+        if (movie != null && movie.getLanguage() != null && !movie.getLanguage().trim().isEmpty()) {
+            chips.add(new CinevaUI.Chip(movie.getLanguage(), CinevaUI.DIM));
+        }
+        info.add(chips);
+        info.add(Box.createVerticalStrut(18));
 
-        infoStack.add(Box.createVerticalStrut(8));
+        JTextArea synopsis = new JTextArea(getSynopsis(movieTitle));
+        synopsis.setEditable(false);
+        synopsis.setFocusable(false);
+        synopsis.setOpaque(false);
+        synopsis.setLineWrap(true);
+        synopsis.setWrapStyleWord(true);
+        synopsis.setBorder(null);
+        synopsis.setFont(CustomerHomeFrame.Fonts.get(false, 13.5f));
+        synopsis.setForeground(new Color(168, 172, 182));
+        synopsis.setAlignmentX(Component.LEFT_ALIGNMENT);
+        info.add(synopsis);
 
-        // Badges Row (Rating, Genre, Quality)
-        JPanel badgesRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        badgesRow.setOpaque(false);
-
-        badgesRow.add(createBadge(getRating(movieTitle), Theme.ACCENT_GOLD, new Color(251, 191, 36, 40)));
-        badgesRow.add(createBadge(getGenre(movieTitle), Theme.ACCENT_CYAN, new Color(0, 245, 212, 35)));
-        badgesRow.add(createBadge("4K Dolby Atmos", Theme.PRIMARY_HOVER, new Color(127, 86, 217, 40)));
-        badgesRow.add(createBadge("English / Sub", Theme.TEXT_MUTED, new Color(255, 255, 255, 20)));
-
-        infoStack.add(badgesRow);
-        infoStack.add(Box.createVerticalStrut(10));
-
-        // Synopsis
-        JLabel lblDesc = new JLabel("<html><body style='width: 480px; color: #A5A6C2; font-family: Segoe UI; font-size: 11px;'>"
-            + getSynopsis(movieTitle) + "</body></html>");
-        infoStack.add(lblDesc);
-
-        hero.add(infoStack, BorderLayout.CENTER);
+        hero.add(info, BorderLayout.CENTER);
         return hero;
     }
 
-    private JLabel createBadge(String text, Color textColor, Color bgColor) {
-        JLabel badge = new JLabel("  " + text + "  ");
-        badge.setFont(Theme.FONT_SMALL_BOLD);
-        badge.setForeground(textColor);
-        badge.setBackground(bgColor);
-        badge.setOpaque(true);
-        badge.setBorder(BorderFactory.createLineBorder(textColor, 1, true));
-        return badge;
-    }
-
-    private BufferedImage loadPosterImage(String title) {
-        if (title == null) return null;
-        String lower = title.toLowerCase();
-        String file = null;
-        if (lower.contains("interstellar")) file = "assets/posters/interstellar.jpg";
-        else if (lower.contains("inception")) file = "assets/posters/inception.jpg";
-        else if (lower.contains("dark knight")) file = "assets/posters/dark_knight.jpg";
-        else if (lower.contains("drishyam")) file = "assets/posters/drishyam.jpg";
-        else if (lower.contains("premam")) file = "assets/posters/premam.jpg";
-        else if (lower.contains("avatar")) file = "assets/posters/avatar.jpg";
-        else if (lower.contains("spider")) file = "assets/posters/spiderman.jpg";
-
-        if (file != null) {
-            File f = new File(file);
-            if (f.exists()) {
-                try {
-                    return ImageIO.read(f);
-                } catch (Exception ignored) {}
+    // =====================================================================
+    //  Poster
+    // =====================================================================
+    private void loadPoster() {
+        new SwingWorker<BufferedImage, Void>() {
+            @Override
+            protected BufferedImage doInBackground() {
+                Movie m = movie != null ? movie : new Movie(movieId, movieTitle, "", 1, "");
+                return CustomerHomeFrame.PosterStrip.readPoster(m);
             }
-        }
-        return null;
+
+            @Override
+            protected void done() {
+                try {
+                    poster = get();
+                    posterBox.repaint();
+                } catch (Exception ignored) {
+                    // placeholder stays
+                }
+            }
+        }.execute();
     }
 
+    private class PosterBox extends JComponent {
+        @Override
+        protected void paintComponent(Graphics g0) {
+            Graphics2D g = (Graphics2D) g0.create();
+            CustomerHomeFrame.aa(g);
+            int w = getWidth();
+            int h = getHeight();
+            RoundRectangle2D shape = new RoundRectangle2D.Float(0, 0, w, h, 18, 18);
+            g.clip(shape);
+            if (poster != null) {
+                float s = Math.max(w / (float) poster.getWidth(), h / (float) poster.getHeight());
+                int sw = Math.round(w / s);
+                int sh = Math.round(h / s);
+                int sx = (poster.getWidth() - sw) / 2;
+                int sy = (poster.getHeight() - sh) / 2;
+                g.drawImage(poster, 0, 0, w, h, sx, sy, sx + sw, sy + sh, null);
+            } else {
+                String t = movieTitle == null ? "" : movieTitle;
+                float hue = (Math.abs(t.hashCode()) % 360) / 360f;
+                g.setPaint(new GradientPaint(0, 0, Color.getHSBColor(hue, 0.55f, 0.46f),
+                        0, h, Color.getHSBColor((hue + 0.1f) % 1f, 0.6f, 0.10f)));
+                g.fillRect(0, 0, w, h);
+                String ini = t.isEmpty() ? "?" : t.substring(0, 1).toUpperCase();
+                g.setFont(CustomerHomeFrame.Fonts.get(true, h * 0.4f));
+                FontMetrics fm = g.getFontMetrics();
+                g.setColor(new Color(255, 255, 255, 40));
+                g.drawString(ini, (w - fm.stringWidth(ini)) / 2f, h * 0.5f + fm.getAscent() * 0.3f);
+            }
+            g.setClip(null);
+            g.setColor(new Color(255, 255, 255, 26));
+            g.setStroke(new BasicStroke(1f));
+            g.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1, h - 1, 18, 18));
+            g.dispose();
+        }
+    }
+
+    // =====================================================================
+    //  Showtime list
+    // =====================================================================
+    private static final double[] FRAC = {0.20, 0.34, 0.26, 0.20};   // time, date, screen, price
+    private static final String[] HEADS = {"Time", "Date", "Screen", "Price"};
+
+    private static int colX(int c, int w) {
+        double s = 0;
+        for (int i = 0; i < c; i++) {
+            s += FRAC[i];
+        }
+        return (int) Math.round(s * w);
+    }
+
+    private static int colW(int c, int w) {
+        return (int) Math.round(FRAC[c] * w);
+    }
+
+    private class ListHeader extends JComponent {
+        @Override public Dimension getPreferredSize() { return new Dimension(100, 28); }
+
+        @Override
+        protected void paintComponent(Graphics g0) {
+            Graphics2D g = (Graphics2D) g0.create();
+            CustomerHomeFrame.aa(g);
+            g.setFont(CustomerHomeFrame.Fonts.get(true, 10.5f));
+            g.setColor(CinevaUI.DIM);
+            FontMetrics fm = g.getFontMetrics();
+            int w = getWidth();
+            for (int c = 0; c < HEADS.length; c++) {
+                String t = HEADS[c].toUpperCase();
+                CustomerHomeFrame.drawTracked(g, t, colX(c, w) + 26, (28 + fm.getAscent() - fm.getDescent()) / 2f, 1.4f);
+            }
+            g.dispose();
+        }
+    }
+
+    /** Rounded showtime rows. Click to select, double-click to go to the seats. */
+    private class ShowList extends JComponent implements Scrollable {
+        private int hover = -1;
+        private int selected = -1;
+
+        ShowList() {
+            MouseAdapter ma = new MouseAdapter() {
+                @Override public void mouseMoved(MouseEvent e) {
+                    int i = indexAt(e.getY());
+                    if (i != hover) { hover = i; repaint(); }
+                    setCursor(Cursor.getPredefinedCursor(i >= 0 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+                }
+                @Override public void mouseExited(MouseEvent e) { hover = -1; repaint(); }
+                @Override public void mousePressed(MouseEvent e) {
+                    int i = indexAt(e.getY());
+                    if (i >= 0) {
+                        selected = i;
+                        repaint();
+                        if (e.getClickCount() == 2) {
+                            handleProceed();
+                        }
+                    }
+                }
+            };
+            addMouseListener(ma);
+            addMouseMotionListener(ma);
+        }
+
+        int selectedIndex() { return selected; }
+
+        void reset() { selected = -1; hover = -1; revalidate(); repaint(); }
+
+        private int indexAt(int y) {
+            int i = y / (ROW_H + GAP);
+            return (i >= 0 && i < showsList.size() && y % (ROW_H + GAP) < ROW_H) ? i : -1;
+        }
+
+        @Override public Dimension getPreferredSize() {
+            return new Dimension(400, Math.max(1, showsList.size()) * (ROW_H + GAP));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g0) {
+            Graphics2D g = (Graphics2D) g0.create();
+            CustomerHomeFrame.aa(g);
+            int w = getWidth();
+            DateTimeFormatter df = DateTimeFormatter.ofPattern("EEE, d MMM yyyy", Locale.ENGLISH);
+            for (int i = 0; i < showsList.size(); i++) {
+                Show s = showsList.get(i);
+                int y = i * (ROW_H + GAP);
+                boolean sel = i == selected;
+                RoundRectangle2D box = new RoundRectangle2D.Float(0.75f, y + 0.75f, w - 1.5f, ROW_H - 1.5f, 18, 18);
+                g.setColor(sel ? new Color(28, 28, 34) : (i == hover ? new Color(22, 22, 28) : new Color(13, 13, 17)));
+                g.fill(box);
+                g.setStroke(new BasicStroke(sel ? 1.6f : 1f));
+                g.setColor(sel ? Color.WHITE : CinevaUI.LINE);
+                g.draw(box);
+
+                // selection dot
+                g.setStroke(new BasicStroke(1.3f));
+                g.setColor(sel ? Color.WHITE : new Color(88, 92, 102));
+                g.drawOval(18, y + ROW_H / 2 - 6, 12, 12);
+                if (sel) {
+                    g.fillOval(21, y + ROW_H / 2 - 3, 6, 6);
+                }
+
+                String time = s.getShowTime() != null ? s.getShowTime().toString().substring(0, 5) : "";
+                String date = s.getShowDate() != null ? s.getShowDate().toLocalDate().format(df) : "";
+                String screen = s.getScreenName() != null ? s.getScreenName() : "Screen 1";
+                BigDecimal p = s.getTicketPrice() != null ? s.getTicketPrice() : BigDecimal.valueOf(150.0);
+                String price = "Rs. " + String.format("%.2f", p);
+
+                int base = y + ROW_H / 2;
+                g.setFont(CustomerHomeFrame.Fonts.get(true, 17f));
+                g.setColor(Color.WHITE);
+                text(g, time, colX(0, w) + 40, base);
+                g.setFont(CustomerHomeFrame.Fonts.get(false, 14f));
+                g.setColor(new Color(214, 216, 222));
+                text(g, CustomerHomeFrame.fit(date, g.getFontMetrics(), colW(1, w) - 12), colX(1, w) + 26, base);
+                g.setColor(new Color(168, 172, 182));
+                text(g, CustomerHomeFrame.fit(screen, g.getFontMetrics(), colW(2, w) - 12), colX(2, w) + 26, base);
+                g.setFont(CustomerHomeFrame.Fonts.get(true, 14f));
+                g.setColor(Color.WHITE);
+                text(g, price, colX(3, w) + 26, base);
+            }
+            g.dispose();
+        }
+
+        private void text(Graphics2D g, String s, int x, int centreY) {
+            FontMetrics fm = g.getFontMetrics();
+            g.drawString(s, x, centreY + (fm.getAscent() - fm.getDescent()) / 2f);
+        }
+
+        @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }
+        @Override public int getScrollableUnitIncrement(Rectangle r, int o, int d) { return 24; }
+        @Override public int getScrollableBlockIncrement(Rectangle r, int o, int d) { return r.height; }
+        @Override public boolean getScrollableTracksViewportWidth() { return true; }
+        @Override public boolean getScrollableTracksViewportHeight() { return false; }
+    }
+
+    // =====================================================================
+    //  Static movie copy (unchanged)
+    // =====================================================================
     private String getRating(String title) {
         if (title == null) return "★ 8.5";
         String l = title.toLowerCase();
@@ -299,8 +432,11 @@ public class ShowSelectionDialog extends JDialog {
         return "Experience premium cinema with state-of-the-art laser projection, immersive audio, and luxury recliner seating.";
     }
 
+    // =====================================================================
+    //  Actions (logic unchanged)
+    // =====================================================================
     private void handleProceed() {
-        int selectedRow = table.getSelectedRow();
+        int selectedRow = list.selectedIndex();
         if (selectedRow < 0) {
             JOptionPane.showMessageDialog(this,
                 "Please select an upcoming showtime from the list to continue.",
@@ -327,7 +463,6 @@ public class ShowSelectionDialog extends JDialog {
     }
 
     public void loadShows() {
-        tableModel.setRowCount(0);
         showsList.clear();
 
         try {
@@ -340,18 +475,12 @@ public class ShowSelectionDialog extends JDialog {
                         s.setMovieTitle(movieTitle);
                     }
                     showsList.add(s);
-                    tableModel.addRow(new Object[] {
-                        s.getShowId(),
-                        s.getScreenName() != null ? s.getScreenName() : "Screen 1 (Laser 4K)",
-                        s.getShowDate(),
-                        s.getShowTime(),
-                        "Rs. " + String.format("%.2f", s.getTicketPrice() != null ? s.getTicketPrice() : BigDecimal.valueOf(150.0))
-                    });
                 }
             }
         } catch (Throwable t) {
             System.err.println("[ShowSelectionDialog] Error loading shows from DAO: " + t.getMessage());
         }
+        list.reset();
 
         if (showsList.isEmpty()) {
             JOptionPane.showMessageDialog(this,
@@ -364,8 +493,8 @@ public class ShowSelectionDialog extends JDialog {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
+            com.formdev.flatlaf.FlatDarkLaf.setup();
             JFrame dummy = new JFrame();
-            Theme.applyDarkTheme(dummy);
             ShowSelectionDialog dialog = new ShowSelectionDialog(dummy, 1, "Interstellar");
             dialog.setVisible(true);
         });

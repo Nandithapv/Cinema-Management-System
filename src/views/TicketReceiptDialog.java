@@ -28,14 +28,15 @@ import javax.swing.border.EmptyBorder;
  */
 public class TicketReceiptDialog extends JDialog {
 
-    // Palette extracted from the Pinterest Mobile Ticket & Ticket Stub references
-    private static final Color APP_BG          = new Color(11, 10, 24);     // Deep midnight-indigo
-    private static final Color STUB_BG         = new Color(245, 243, 250);  // High-contrast clean stub surface
-    private static final Color STUB_TEXT_DARK  = new Color(22, 24, 38);     // Crisp dark stub labels
-    private static final Color STUB_TEXT_MUTED = new Color(110, 114, 138);  // Soft gray label
-    private static final Color ACCENT_CYAN     = new Color(0, 245, 212);    // Cyber cyan
-    private static final Color ACCENT_PURPLE   = new Color(127, 86, 217);   // Electric violet
-    private static final Color ACCENT_GOLD     = new Color(245, 158, 11);   // Amber gold
+    // Cineva palette: black page, clean light stub for readability
+    private static final Color APP_BG          = CinevaUI.BG;
+    private static final Color STUB_BG         = new Color(240, 240, 243);
+    private static final Color STUB_TEXT_DARK  = new Color(14, 14, 18);
+    private static final Color STUB_TEXT_MUTED = new Color(112, 114, 124);
+    private static final Color ACCENT_GOLD     = new Color(255, 196, 62);
+
+    private volatile BufferedImage poster;     // loaded in the background (see loadPoster)
+    private JPanel topBannerRef;
 
     private final int bookingId;
     private final String movie;
@@ -97,18 +98,16 @@ public class TicketReceiptDialog extends JDialog {
         topIndicator.setOpaque(false);
         topIndicator.setBorder(new EmptyBorder(0, 0, 14, 0));
 
-        JLabel lblHeader = new JLabel("Mobile Cinema Pass", SwingConstants.CENTER);
-        lblHeader.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        lblHeader.setForeground(Color.WHITE);
+        CinevaUI.TrackedText lblHeader = CinevaUI.TrackedText.light("MOBILE CINEMA PASS", 22f, Color.WHITE, 0.08f);
         lblHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JLabel lblSub = new JLabel("Scan barcode at entrance to access the movie", SwingConstants.CENTER);
-        lblSub.setFont(Theme.FONT_SMALL);
-        lblSub.setForeground(Theme.TEXT_MUTED);
+        JLabel lblSub = new JLabel("Scan the barcode at the entrance", SwingConstants.CENTER);
+        lblSub.setFont(CustomerHomeFrame.Fonts.get(false, 12.5f));
+        lblSub.setForeground(CinevaUI.DIM);
         lblSub.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         topIndicator.add(lblHeader);
-        topIndicator.add(Box.createVerticalStrut(3));
+        topIndicator.add(Box.createVerticalStrut(4));
         topIndicator.add(lblSub);
         root.add(topIndicator, BorderLayout.NORTH);
 
@@ -119,7 +118,6 @@ public class TicketReceiptDialog extends JDialog {
         ticketCard.setPreferredSize(new Dimension(380, 520));
 
         // 1. Top Section: Cinematic Movie Poster Card (Pinterest 1 style)
-        BufferedImage posterImg = loadPosterImage(movie);
         JPanel topBanner = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -135,45 +133,68 @@ public class TicketReceiptDialog extends JDialog {
                 Shape clip = new RoundRectangle2D.Float(0, 0, w, h + 16, 20, 20);
                 g2.setClip(clip);
 
+                BufferedImage posterImg = poster;
                 if (posterImg != null) {
-                    g2.drawImage(posterImg, 0, 0, w, h, null);
+                    float sc = Math.max(w / (float) posterImg.getWidth(), h / (float) posterImg.getHeight());
+                    int sw = Math.round(w / sc), sh = Math.round(h / sc);
+                    int sx = (posterImg.getWidth() - sw) / 2, sy = (posterImg.getHeight() - sh) / 2;
+                    g2.drawImage(posterImg, 0, 0, w, h, sx, sy, sx + sw, sy + sh, null);
                     // Dark atmospheric gradient overlay
                     GradientPaint grad = new GradientPaint(
-                        0, 0, new Color(11, 10, 24, 80),
-                        0, h, new Color(18, 16, 36, 235)
+                        0, 0, new Color(5, 5, 7, 60),
+                        0, h, new Color(5, 5, 7, 240)
                     );
                     g2.setPaint(grad);
                     g2.fillRect(0, 0, w, h);
                 } else {
                     GradientPaint grad = new GradientPaint(
-                        0, 0, new Color(42, 38, 75),
-                        0, h, new Color(18, 16, 36)
+                        0, 0, new Color(36, 36, 44),
+                        0, h, new Color(8, 8, 10)
                     );
                     g2.setPaint(grad);
                     g2.fillRect(0, 0, w, h);
                 }
 
-                // Verified Pass Badge
-                g2.setColor(new Color(0, 245, 212, 40));
-                g2.fill(new RoundRectangle2D.Float(14, 14, 130, 24, 10, 10));
-                g2.setColor(ACCENT_CYAN);
-                g2.draw(new RoundRectangle2D.Float(14, 14, 130, 24, 10, 10));
-                g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
-                g2.drawString("✓  CONFIRMED PASS", 22, 30);
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
 
-                // Movie Title
+                // Confirmed badge (outlined pill)
+                String badge = "CONFIRMED";
+                g2.setFont(CustomerHomeFrame.Fonts.get(true, 10f));
+                FontMetrics bfm = g2.getFontMetrics();
+                float bw = CustomerHomeFrame.trackedWidth(bfm, badge, 1.6f) + 30;
+                g2.setColor(new Color(255, 255, 255, 30));
+                g2.fill(new RoundRectangle2D.Float(16, 16, bw, 26, 26, 26));
+                g2.setColor(new Color(255, 255, 255, 170));
+                g2.setStroke(new BasicStroke(1f));
+                g2.draw(new RoundRectangle2D.Float(16.5f, 16.5f, bw - 1, 25, 26, 26));
                 g2.setColor(Color.WHITE);
-                g2.setFont(new Font("Segoe UI", Font.BOLD, 22));
-                g2.drawString(movie, 16, h - 36);
+                CustomerHomeFrame.drawTracked(g2, badge, 16 + 20, 16 + (26 + bfm.getAscent() - bfm.getDescent()) / 2f, 1.6f);
+                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawLine(16 + 9, 29, 16 + 12, 32);
+                g2.drawLine(16 + 12, 32, 16 + 16, 25);
 
-                // Hall & Format Subtitle
-                g2.setColor(ACCENT_GOLD);
-                g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
-                g2.drawString("CINEVA  •  " + screenName + "  •  DOLBY ATMOS", 16, h - 16);
+                // Movie title (thin) - shrinks to fit the card
+                float ts = 28f;
+                Font tf = new Font("Segoe UI Light", Font.PLAIN, 12).deriveFont(ts);
+                while (ts > 16f && g2.getFontMetrics(tf).stringWidth(movie) > w - 34) {
+                    ts -= 1f;
+                    tf = tf.deriveFont(ts);
+                }
+                g2.setColor(Color.WHITE);
+                g2.setFont(tf);
+                g2.drawString(movie, 18, h - 40);
+
+                // Hall subtitle
+                g2.setColor(new Color(200, 204, 214));
+                g2.setFont(CustomerHomeFrame.Fonts.get(true, 10.5f));
+                CustomerHomeFrame.drawTracked(g2, ("CINEVA   \u00b7   " + screenName).toUpperCase(), 18, h - 18, 1.8f);
 
                 g2.dispose();
             }
         };
+        topBannerRef = topBanner;
+        loadPoster();
         topBanner.setPreferredSize(new Dimension(380, 220));
         topBanner.setMaximumSize(new Dimension(380, 220));
         topBanner.setOpaque(false);
@@ -206,12 +227,12 @@ public class TicketReceiptDialog extends JDialog {
         summaryRow.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, new Color(225, 222, 235)));
 
         JLabel lblRef = new JLabel("Ref: " + referenceCode + " (" + method + ")");
-        lblRef.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        lblRef.setFont(CustomerHomeFrame.Fonts.get(true, 11f));
         lblRef.setForeground(STUB_TEXT_MUTED);
 
-        JLabel lblPrice = new JLabel(String.format(Locale.ENGLISH, "₹%.2f", amount));
-        lblPrice.setFont(new Font("Segoe UI", Font.BOLD, 17));
-        lblPrice.setForeground(new Color(110, 40, 190));
+        JLabel lblPrice = new JLabel(String.format(Locale.ENGLISH, "Rs. %.2f", amount));
+        lblPrice.setFont(CustomerHomeFrame.Fonts.get(true, 17f));
+        lblPrice.setForeground(STUB_TEXT_DARK);
 
         summaryRow.add(lblRef, BorderLayout.WEST);
         summaryRow.add(lblPrice, BorderLayout.EAST);
@@ -231,12 +252,10 @@ public class TicketReceiptDialog extends JDialog {
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 14, 12));
         actionPanel.setBackground(APP_BG);
 
-        JButton btnSave = new JButton("⤓  Save as Text File");
-        Theme.styleSecondaryButton(btnSave);
+        JButton btnSave = CinevaUI.pill("Save as text", CinevaUI.OUTLINE);
         btnSave.addActionListener(e -> saveAsTextFile());
 
-        JButton btnClose = new JButton("Done / Close");
-        Theme.stylePrimaryButton(btnClose);
+        JButton btnClose = CinevaUI.pill("Done", CinevaUI.SOLID);
         btnClose.addActionListener(e -> dispose());
 
         actionPanel.add(btnSave);
@@ -251,16 +270,16 @@ public class TicketReceiptDialog extends JDialog {
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
         p.setOpaque(false);
 
-        JLabel lbl = new JLabel(label);
-        lbl.setFont(new Font("Segoe UI", Font.BOLD, 10));
-        lbl.setForeground(STUB_TEXT_MUTED);
+        CinevaUI.TrackedText lbl = CinevaUI.TrackedText.caps(label, STUB_TEXT_MUTED);
+        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel val = new JLabel(value);
-        val.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        val.setFont(CustomerHomeFrame.Fonts.get(true, 15f));
         val.setForeground(STUB_TEXT_DARK);
+        val.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         p.add(lbl);
-        p.add(Box.createVerticalStrut(2));
+        p.add(Box.createVerticalStrut(1));
         p.add(val);
         return p;
     }
@@ -310,27 +329,21 @@ public class TicketReceiptDialog extends JDialog {
         return barcode;
     }
 
-    private BufferedImage loadPosterImage(String title) {
-        if (title == null) return null;
-        String lower = title.toLowerCase();
-        String file = null;
-        if (lower.contains("interstellar")) file = "assets/posters/interstellar.jpg";
-        else if (lower.contains("inception")) file = "assets/posters/inception.jpg";
-        else if (lower.contains("dark knight")) file = "assets/posters/dark_knight.jpg";
-        else if (lower.contains("drishyam")) file = "assets/posters/drishyam.jpg";
-        else if (lower.contains("premam")) file = "assets/posters/premam.jpg";
-        else if (lower.contains("avatar")) file = "assets/posters/avatar.jpg";
-        else if (lower.contains("spider")) file = "assets/posters/spiderman.jpg";
-
-        if (file != null) {
-            File f = new File(file);
-            if (f.exists()) {
-                try {
-                    return ImageIO.read(f);
-                } catch (Exception ignored) {}
+    /** Finds the poster the same way the home page does, in the background. */
+    private void loadPoster() {
+        new SwingWorker<BufferedImage, Void>() {
+            @Override protected BufferedImage doInBackground() {
+                return CustomerHomeFrame.PosterStrip.readPoster(new models.Movie(0, movie, "", 1, ""));
             }
-        }
-        return null;
+            @Override protected void done() {
+                try {
+                    poster = get();
+                    if (topBannerRef != null) topBannerRef.repaint();
+                } catch (Exception ignored) {
+                    // gradient placeholder stays
+                }
+            }
+        }.execute();
     }
 
     private void saveAsTextFile() {
@@ -465,6 +478,7 @@ public class TicketReceiptDialog extends JDialog {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
+            com.formdev.flatlaf.FlatDarkLaf.setup();
             TicketReceiptDialog dlg = new TicketReceiptDialog(
                     null,
                     12,

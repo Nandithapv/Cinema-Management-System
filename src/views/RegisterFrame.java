@@ -3,12 +3,14 @@ package views;
 import dao.UserDAO;
 import models.Customer;
 
+import com.formdev.flatlaf.FlatDarkLaf;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.sql.SQLException;
+
+import static views.UI.*;
 
 /**
  * RegisterFrame provides the customer account creation window.
@@ -18,8 +20,12 @@ import java.sql.SQLException;
  *  - Real-time client-side input validation (email format, password min length 8)
  *  - Handles duplicate email constraint cleanly
  *  - Seamless redirection back to LoginFrame
+ *
+ * UI: same dark card + animated mosaic background as LoginFrame (shared pieces live in UI.java).
  */
 public class RegisterFrame extends JFrame {
+
+    private static final int CONTENT_WIDTH = 360;
 
     private JTextField nameField;
     private JTextField emailField;
@@ -37,148 +43,153 @@ public class RegisterFrame extends JFrame {
     private void initComponents() {
         setTitle("Cinema Management System — Customer Registration");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(480, 520);
-        setLocationRelativeTo(null);
         setResizable(false);
 
-        Color primaryColor = new Color(76, 175, 80);      // Accent Green for signup
-        Color linkColor = new Color(33, 150, 243);
-        Color bgColor = new Color(245, 247, 250);
-        Color cardColor = Color.WHITE;
-        Font titleFont = new Font("Segoe UI", Font.BOLD, 22);
-        Font labelFont = new Font("Segoe UI", Font.PLAIN, 14);
-        Font inputFont = new Font("Segoe UI", Font.PLAIN, 14);
+        // ----- Page background: animated mosaic wave -----
+        MosaicPanel page = new MosaicPanel();
+        page.setLayout(new GridBagLayout());
+        page.setBorder(new EmptyBorder(16, 30, 16, 30));
 
-        JPanel mainPanel = new JPanel(new BorderLayout());
-        mainPanel.setBackground(bgColor);
-        mainPanel.setBorder(new EmptyBorder(20, 30, 20, 30));
+        // ----- Card -----
+        RoundPanel card = new RoundPanel(28, CARD, CARD_BORDER);
+        card.setLayout(new BorderLayout());
 
-        JPanel cardPanel = new JPanel(new GridBagLayout());
-        cardPanel.setBackground(cardColor);
-        cardPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
-                new EmptyBorder(20, 25, 20, 25)
-        ));
+        JPanel content = new JPanel();
+        content.setOpaque(false);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(new EmptyBorder(26, 40, 22, 40));
 
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(6, 5, 6, 5);
+        // CINEVA pill
+        RoundPanel pill = new RoundPanel(14, new Color(24, 27, 33), FIELD_BORDER);
+        pill.setLayout(new FlowLayout(FlowLayout.CENTER, 14, 3));
+        pill.add(new TrackedLabel("CINEVA", font(Font.BOLD, 12), new Color(190, 194, 203), 3));
+        pill.setMaximumSize(pill.getPreferredSize());
+        content.add(centered(pill));
+        content.add(Box.createVerticalStrut(12));
 
-        // Header Title
-        JLabel titleLabel = new JLabel("✨ Create Account", SwingConstants.CENTER);
-        titleLabel.setFont(titleFont);
-        titleLabel.setForeground(new Color(33, 37, 41));
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.gridwidth = 2;
-        cardPanel.add(titleLabel, gbc);
+        // Title + subtitle
+        JLabel titleLabel = new JLabel("Create Account");
+        titleLabel.setFont(font(Font.BOLD, 28));
+        titleLabel.setForeground(TEXT);
+        content.add(centered(titleLabel));
+        content.add(Box.createVerticalStrut(4));
 
-        JLabel subtitleLabel = new JLabel("Join us to book your favorite cinema tickets", SwingConstants.CENTER);
-        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        subtitleLabel.setForeground(Color.GRAY);
-        gbc.gridy = 1;
-        cardPanel.add(subtitleLabel, gbc);
+        JLabel subtitleLabel = new JLabel("Join us to book your favorite cinema tickets");
+        subtitleLabel.setFont(font(Font.PLAIN, 14));
+        subtitleLabel.setForeground(MUTED);
+        content.add(centered(subtitleLabel));
+        content.add(Box.createVerticalStrut(20));
 
         // Full Name
-        JLabel nameLabel = new JLabel("Full Name:");
-        nameLabel.setFont(labelFont);
-        gbc.gridy = 2;
-        cardPanel.add(nameLabel, gbc);
-
+        content.add(centered(labelRow("Full Name:", null, CONTENT_WIDTH)));
+        content.add(Box.createVerticalStrut(6));
         nameField = new JTextField();
-        nameField.setFont(inputFont);
-        nameField.setPreferredSize(new Dimension(340, 34));
-        gbc.gridy = 3;
-        cardPanel.add(nameField, gbc);
+        nameField.putClientProperty("JTextField.placeholderText", "Full name");
+        content.add(centered(buildField(IconType.USER, nameField, null, CONTENT_WIDTH)));
+        content.add(Box.createVerticalStrut(12));
 
         // Email
-        JLabel emailLabel = new JLabel("Email Address:");
-        emailLabel.setFont(labelFont);
-        gbc.gridy = 4;
-        cardPanel.add(emailLabel, gbc);
-
+        content.add(centered(labelRow("Email Address:", null, CONTENT_WIDTH)));
+        content.add(Box.createVerticalStrut(6));
         emailField = new JTextField();
-        emailField.setFont(inputFont);
-        emailField.setPreferredSize(new Dimension(340, 34));
-        gbc.gridy = 5;
-        cardPanel.add(emailField, gbc);
+        emailField.putClientProperty("JTextField.placeholderText", "Email address");
+        content.add(centered(buildField(IconType.MAIL, emailField, null, CONTENT_WIDTH)));
+        content.add(Box.createVerticalStrut(12));
 
         // Password
-        JLabel passwordLabel = new JLabel("Password (min 8 chars):");
-        passwordLabel.setFont(labelFont);
-        gbc.gridy = 6;
-        cardPanel.add(passwordLabel, gbc);
-
+        content.add(centered(labelRow("Password (min 8 chars):", null, CONTENT_WIDTH)));
+        content.add(Box.createVerticalStrut(6));
         passwordField = new JPasswordField();
-        passwordField.setFont(inputFont);
-        passwordField.setPreferredSize(new Dimension(340, 34));
-        gbc.gridy = 7;
-        cardPanel.add(passwordField, gbc);
+        passwordField.putClientProperty("JTextField.placeholderText", "Password");
+        content.add(centered(buildField(IconType.LOCK, passwordField, eyeFor(passwordField), CONTENT_WIDTH)));
+        content.add(Box.createVerticalStrut(12));
 
         // Confirm Password
-        JLabel confirmLabel = new JLabel("Confirm Password:");
-        confirmLabel.setFont(labelFont);
-        gbc.gridy = 8;
-        cardPanel.add(confirmLabel, gbc);
-
+        content.add(centered(labelRow("Confirm Password:", null, CONTENT_WIDTH)));
+        content.add(Box.createVerticalStrut(6));
         confirmPasswordField = new JPasswordField();
-        confirmPasswordField.setFont(inputFont);
-        confirmPasswordField.setPreferredSize(new Dimension(340, 34));
-        gbc.gridy = 9;
-        cardPanel.add(confirmPasswordField, gbc);
+        confirmPasswordField.putClientProperty("JTextField.placeholderText", "Confirm password");
+        content.add(centered(buildField(IconType.LOCK, confirmPasswordField, eyeFor(confirmPasswordField), CONTENT_WIDTH)));
+        content.add(Box.createVerticalStrut(20));
 
-        // Register Button
-        registerButton = new JButton("Create Account");
-        registerButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        registerButton.setBackground(primaryColor);
-        registerButton.setForeground(Color.WHITE);
-        registerButton.setFocusPainted(false);
-        registerButton.setPreferredSize(new Dimension(340, 38));
-        registerButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        gbc.gridy = 10;
-        gbc.insets = new Insets(14, 5, 6, 5);
-        cardPanel.add(registerButton, gbc);
+        // Register button
+        registerButton = new PrimaryButton("Create Account");
+        fixSize(registerButton, CONTENT_WIDTH, 50);
+        content.add(centered(registerButton));
+        content.add(Box.createVerticalStrut(16));
 
-        // Already have an account? Login link
-        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        bottomPanel.setBackground(cardColor);
+        // Divider
+        JPanel divider = new JPanel();
+        divider.setBackground(new Color(34, 37, 44));
+        fixSize(divider, CONTENT_WIDTH, 1);
+        content.add(centered(divider));
+        content.add(Box.createVerticalStrut(14));
+
+        // Already have an account? Log In
+        JPanel loginRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
+        loginRow.setOpaque(false);
         JLabel haveAccountLabel = new JLabel("Already have an account?");
-        haveAccountLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        haveAccountLabel.setFont(font(Font.PLAIN, 15));
+        haveAccountLabel.setForeground(MUTED);
+        backToLoginButton = linkButton("Log In", font(Font.BOLD, 15), TEXT, true);
+        loginRow.add(haveAccountLabel);
+        loginRow.add(backToLoginButton);
+        fixSize(loginRow, CONTENT_WIDTH, 28);
+        content.add(centered(loginRow));
 
-        backToLoginButton = new JButton("Log In");
-        backToLoginButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        backToLoginButton.setForeground(linkColor);
-        backToLoginButton.setBorderPainted(false);
-        backToLoginButton.setContentAreaFilled(false);
-        backToLoginButton.setFocusPainted(false);
-        backToLoginButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        card.add(content, BorderLayout.CENTER);
 
-        bottomPanel.add(haveAccountLabel);
-        bottomPanel.add(backToLoginButton);
+        // Footer strip
+        JPanel footer = new FooterPanel(FOOTER_BG, new Color(30, 33, 40), 28);
+        footer.setLayout(new BorderLayout());
+        footer.setBorder(new EmptyBorder(12, 24, 12, 24));
+        JPanel footerLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        footerLeft.setOpaque(false);
+        footerLeft.add(new DotComponent());
+        JLabel nodeLabel = new JLabel("Customer Registration Portal Online");
+        nodeLabel.setFont(font(Font.PLAIN, 12));
+        nodeLabel.setForeground(MUTED);
+        footerLeft.add(nodeLabel);
+        JLabel versionLabel = new JLabel("v4.8.2 Monolith");
+        versionLabel.setFont(font(Font.PLAIN, 12));
+        versionLabel.setForeground(MUTED);
+        footer.add(footerLeft, BorderLayout.WEST);
+        footer.add(versionLabel, BorderLayout.EAST);
+        card.add(footer, BorderLayout.SOUTH);
 
-        gbc.gridy = 11;
-        gbc.insets = new Insets(2, 5, 2, 5);
-        cardPanel.add(bottomPanel, gbc);
+        page.add(card);
 
-        mainPanel.add(cardPanel, BorderLayout.CENTER);
-        add(mainPanel);
+        setContentPane(page);
+        pack();
+        setLocationRelativeTo(null);
 
-        // Event Listeners
-        registerButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                handleRegistration();
-            }
-        });
+        // ----- Listeners -----
+        registerButton.addActionListener(e -> handleRegistration());
+        backToLoginButton.addActionListener(e -> openLoginFrame());
 
-        backToLoginButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                openLoginFrame();
-            }
-        });
+        // Enter moves to the next field; Enter on the last field submits
+        nameField.addActionListener(e -> emailField.requestFocusInWindow());
+        emailField.addActionListener(e -> passwordField.requestFocusInWindow());
+        passwordField.addActionListener(e -> confirmPasswordField.requestFocusInWindow());
+        confirmPasswordField.addActionListener(e -> handleRegistration());
+        getRootPane().setDefaultButton(registerButton);
     }
 
+    /** Eye button that shows / hides the characters of the given password field. */
+    private EyeButton eyeFor(final JPasswordField field) {
+        final char defaultEcho = field.getEchoChar();
+        final EyeButton eye = new EyeButton();
+        eye.addActionListener(e -> {
+            boolean reveal = field.getEchoChar() != (char) 0;
+            field.setEchoChar(reveal ? (char) 0 : defaultEcho);
+            eye.setRevealed(reveal);
+        });
+        return eye;
+    }
+
+    // =====================================================================
+    //  Registration logic (unchanged)
+    // =====================================================================
     private void handleRegistration() {
         String name = nameField.getText().trim();
         String email = emailField.getText().trim();
@@ -245,14 +256,7 @@ public class RegisterFrame extends JFrame {
 
     // Direct runnable entrypoint for testing RegisterFrame
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-                } catch (Exception ignored) {}
-                new RegisterFrame().setVisible(true);
-            }
-        });
+        FlatDarkLaf.setup();
+        SwingUtilities.invokeLater(() -> new RegisterFrame().setVisible(true));
     }
 }

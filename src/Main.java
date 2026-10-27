@@ -1,7 +1,7 @@
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import views.LoginFrame;
-
+import com.formdev.flatlaf.FlatDarkLaf;
 /**
  * Main Application Entry Point.
  * Created & Integrated by Member 6 (Nanditha P V: Master Integration & QA Lead).
@@ -16,12 +16,8 @@ public class Main {
         System.setProperty("awt.useSystemAAFontSettings", "on");
         System.setProperty("swing.aatext", "true");
 
-        // Set modern system Look & Feel
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception e) {
-            System.err.println("Note: Using default Look & Feel: " + e.getMessage());
-        }
+        // Modern flat dark Look & Feel (must be set before any window is created)
+        FlatDarkLaf.setup();
 
         // Launch application on Swing Event Dispatch Thread (EDT)
         SwingUtilities.invokeLater(() -> {

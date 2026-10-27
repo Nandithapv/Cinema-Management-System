@@ -71,3 +71,9 @@ All team members should style their Swing components using `views.Theme` for vis
 * Secondary Buttons: `Theme.styleSecondaryButton(btn)`
 * Danger / Cancel Buttons: `Theme.styleDangerButton(btn)`
 * Backgrounds: `Theme.applyDarkTheme(frame)`
+
+## UI libraries (not stored in Git)
+The redesigned screens use FlatLaf. Download `flatlaf-3.7.2.jar` from Maven Central
+(com/formdev/flatlaf/3.7.2/), put it in the project's `lib` folder and add it to the build path
+(right-click the jar > Build Path > Add to Build Path).
+Posters live in `resources/posters` (any image whose file name matches the movie title is found).

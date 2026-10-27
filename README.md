@@ -36,6 +36,8 @@ src/
         └── MovieCardPanel.java      # Reusable movie display card
 ```
 
+Movie posters live in `resources/posters` (any image whose file name matches the movie title is found).
+
 ---
 
 ## 🚀 Setup & Execution Guide
@@ -43,7 +45,7 @@ src/
 ### 1. Prerequisites
 - **JDK 17+** (JDK 21 LTS or JDK 25 recommended)
 - **MySQL Server 8.0+** & MySQL Workbench
-- **MySQL Connector/J JAR** (e.g. `mysql-connector-j-8.x.jar`) added to project build path
+- **Libraries:** FlatLaf and MySQL Connector/J (see step 3 below)
 
 ### 2. Database Setup
 1. Open MySQL Workbench.
@@ -51,16 +53,24 @@ src/
    * **Admin Email:** `admin@cinema.com`
    * **Admin Password:** `admin123`
 
-### 3. Local Configuration
-Create a local `db.properties` file in the project root (this file is ignored by git):
+### 3. Add Required Libraries
+The jars are not stored in Git. Create a `lib` folder in the project root and download both jars into it:
+
+- [flatlaf-3.7.2.jar](https://repo1.maven.org/maven2/com/formdev/flatlaf/3.7.2/flatlaf-3.7.2.jar)
+- [mysql-connector-j-8.4.0.jar](https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.4.0/mysql-connector-j-8.4.0.jar)
+
+Then in Eclipse: right-click the project → **Build Path → Configure Build Path → Libraries → Add JARs...**, select both jars from `lib`, and click **Apply and Close**.
+
+### 4. Local Configuration
+Copy `db.properties.example` to `db.properties` in the project root (this file is ignored by git) and fill in your MySQL password:
 ```properties
 db.url=jdbc:mysql://localhost:3306/CinemaManagement?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
 db.user=root
 db.password=YOUR_MYSQL_PASSWORD
 ```
 
-### 4. Running the Application
-* **In Eclipse:** Right-click `src/Main.java` $\rightarrow$ **Run As** $\rightarrow$ **Java Application**.
+### 5. Running the Application
+* **In Eclipse:** Right-click `src/Main.java` → **Run As** → **Java Application**.
 * **Direct UI Testing:** You can also run `src/views/CustomerHomeFrame.java` or `src/views/Theme.java` standalone to test views independently.
 
 ---
@@ -71,9 +81,3 @@ All team members should style their Swing components using `views.Theme` for vis
 * Secondary Buttons: `Theme.styleSecondaryButton(btn)`
 * Danger / Cancel Buttons: `Theme.styleDangerButton(btn)`
 * Backgrounds: `Theme.applyDarkTheme(frame)`
-
-## UI libraries (not stored in Git)
-The redesigned screens use FlatLaf. Download `flatlaf-3.7.2.jar` from Maven Central
-(com/formdev/flatlaf/3.7.2/), put it in the project's `lib` folder and add it to the build path
-(right-click the jar > Build Path > Add to Build Path).
-Posters live in `resources/posters` (any image whose file name matches the movie title is found).

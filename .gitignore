@@ -1,2 +1,15 @@
+# Eclipse & Build files
 bin/
 .settings/
+.indexes/
+desktop.ini
+module-info.java
+*.class
+
+# Database configuration with credentials
+db.properties
+db.properties.local
+
+# OS specific files
+.DS_Store
+Thumbs.db

@@ -1,8 +1,6 @@
 # Eclipse & Build files
 bin/
 .settings/
-.project
-.classpath
 .indexes/
 desktop.ini
 module-info.java
@@ -15,6 +13,3 @@ db.properties.local
 # OS specific files
 .DS_Store
 Thumbs.db
-
-# Dependencies
-lib/
